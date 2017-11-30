@@ -45,9 +45,13 @@ const int MAX_SPEED = 400;
 
 //bool shortCut = false;
 int stage = 1;
-const int objectWidth = 100;
+const int objectWidth = 70;
 const int objectWidth2 = 70;
-const int minObjectWidth2 = 15;
+const int minObjectWidth2 = 12;
+
+
+//TURNING SPEED WHEN SEARCH
+const int turningSpeed = 150;
 void setup()
 {
   Serial.begin(9600);
@@ -167,6 +171,9 @@ void loop()
     {
       sprintf(buf, "Detected %d:\n", blocks);
       Serial.print(buf);
+      int maxWidthDetected = 0;
+      bool detected = false;
+      int posX = 0;
       for (j=0; j<blocks; j++)
       {
         sprintf(buf, "  block %d: ", j);
@@ -174,41 +181,81 @@ void loop()
         // > 50 then detect zone B
         // for bonus detect width>250
         if((pixy.blocks[j].signature == 1) && (stage == 1)){
-          if(pixy.blocks[j].width > objectWidth){
-            stage = 2;
+//          if(maxWidthDetected > objectWidth){
+//            stage = 2;
+//          }
+          detected = true;
+          if(pixy.blocks[j].width > maxWidthDetected)
+            maxWidthDetected = pixy.blocks[j].width;
+          
+        }else if((pixy.blocks[j].signature == 2) && (stage == 2) &&(pixy.blocks[j].width > minObjectWidth2)){
+          detected = true;
+          if(pixy.blocks[j].width > maxWidthDetected){
+            maxWidthDetected = pixy.blocks[j].width;
+            posX = pixy.blocks[j].x;
           }
-        }else if((pixy.blocks[j].signature == 2) && (stage == 2 &&(pixy.blocks[j].width > minObjectWidth2))){
-          if(pixy.blocks[j].x > (319/3) * 2){
+//          if(pixy.blocks[j].x > (319/3) * 2){
+//            //turn right
+//            m1Speed = 150;
+//            m2Speed = -150;
+//            Serial.println("I detect it on my right");
+//          }
+//          else if(pixy.blocks[j].x < (319/3) * 1){
+//            
+//            //turn left
+//            m1Speed = -150;
+//            m2Speed = 150;
+//            Serial.println("I detect it on my left");
+//          }
+//          else{
+//            m1Speed = MAX_SPEED;
+//            m2Speed = MAX_SPEED;
+//            Serial.println("I detect it on my center");
+//            if(pixy.blocks[j].width > objectWidth2){
+//              stage = 1;
+//            }
+//          }
+        }else if(stage == 3){
+          m1Speed = 0;
+          m2Speed = 0;
+        }
+      }
+
+      if(stage == 1){
+        if(detected && maxWidthDetected > objectWidth){
+          stage = 2;
+        }
+      }else if(stage == 2){
+        if(detected){
+          if(posX > (319/3) * 2){
             //turn right
-            m1Speed = 150;
-            m2Speed = -150;
+            m1Speed = turningSpeed;
+            m2Speed = -turningSpeed;
             Serial.println("I detect it on my right");
           }
-          else if(pixy.blocks[j].x < (319/3) * 1){
+          else if(posX < (319/3) * 1){
             
             //turn left
-            m1Speed = -150;
-            m2Speed = 150;
+            m1Speed = -turningSpeed;
+            m2Speed = turningSpeed;
             Serial.println("I detect it on my left");
           }
           else{
             m1Speed = MAX_SPEED;
             m2Speed = MAX_SPEED;
             Serial.println("I detect it on my center");
-            if(pixy.blocks[j].width > objectWidth2){
-              stage = 1;
-            }
+            
           }
-        }else if(stage == 3){
-          m1Speed = 0;
-          m2Speed = 0;
+        }
+        if(maxWidthDetected > objectWidth2){
+          stage = 1;
         }
       }
     }
   }else{
     if(stage == 2){
-      m1Speed = 150;
-      m2Speed = -150;
+      m1Speed = turningSpeed;
+      m2Speed = -turningSpeed;
     }
   }
   if(stage == 3){
