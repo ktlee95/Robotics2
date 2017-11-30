@@ -42,9 +42,12 @@ int lastError = 0;
 int m1Speed = 0;
 int m2Speed = 0;
 const int MAX_SPEED = 400;
-bool shortCut = false;
-bool obstacle = false;
 
+//bool shortCut = false;
+int stage = 1;
+const int objectWidth = 100;
+const int objectWidth2 = 70;
+const int minObjectWidth2 = 15;
 void setup()
 {
   Serial.begin(9600);
@@ -94,6 +97,7 @@ void setup()
   // Wait for the user button to be pressed and released
 //  button.waitForButton();
 
+  
   // Play music and wait for it to finish before we start driving.
   delay(3000);
   buzzer.play("L16 cdegreg4");
@@ -105,22 +109,35 @@ void setup()
 
 void loop()
 {
-  if(!shortCut){
+  if(stage == 1){
     unsigned int sensors[6];
+
+    // Get the position of the line.  Note that we *must* provide the "sensors"
+    // argument to readLine() here, even though we are not interested in the
+    // individual sensor readings
     int position = reflectanceSensors.readLine(sensors);
+  
+    // Our "error" is how far we are away from the center of the line, which
+    // corresponds to position 2500.
     int error = position - 2500;
-    int speedDifference = 0.15 * error + 6 * (error - lastError);
+    
+    // Get motor speed difference using proportional and derivative PID terms
+    // (the integral term is generally not very useful for line following).
+    // Here we are using a proportional constant of 1/4 and a derivative
+    // constant of 6, which should work decently for many Zumo motor choices.
+    // You probably want to use trial and error to tune these constants for
+    // your particular Zumo and line course.
+    int speedDifference = 0.15 * error + 40 * (error - lastError);
+    
     lastError = error;
+    m1Speed = MAX_SPEED + speedDifference;
+    m2Speed = MAX_SPEED - speedDifference;
     
-    if(position>2250 && position < 2750){
-      m1Speed = MAX_SPEED;
-      m2Speed = MAX_SPEED;
-    }else if(position > 4000 || position < 1000){
-      speedDifference = 0.28 * error + 6 * (error - lastError);
-      m1Speed = MAX_SPEED + speedDifference;
-      m2Speed = MAX_SPEED - speedDifference;
-    }
-    
+    // Here we constrain our motor speeds to be between 0 and MAX_SPEED.
+    // Generally speaking, one motor will always be turning at MAX_SPEED
+    // and the other will be at MAX_SPEED-|speedDifference| if that is positive,
+    // else it will be stationary.  For some applications, you might want to
+    // allow the motor speed to go negative so that it can spin in reverse.
     if (m1Speed < 0)
       m1Speed = 0;
     if (m2Speed < 0)
@@ -130,6 +147,7 @@ void loop()
     if (m2Speed > MAX_SPEED)
       m2Speed = MAX_SPEED;
   }
+  
   
   static int i = 0;
   int j;
@@ -145,35 +163,57 @@ void loop()
     
     // do this (print) every 50 frames because printing every
     // frame would bog down the Arduino
-    if (i%10==0)
+    if (i%1==0)
     {
       sprintf(buf, "Detected %d:\n", blocks);
       Serial.print(buf);
       for (j=0; j<blocks; j++)
       {
         sprintf(buf, "  block %d: ", j);
-        Serial.print();
+//        Serial.print();
         // > 50 then detect zone B
         // for bonus detect width>250
-        if(pixy.blocks[j].signature == 1){
-          if(pixy.blocks[j].width > 50){
-            shortCut = true;
+        if((pixy.blocks[j].signature == 1) && (stage == 1)){
+          if(pixy.blocks[j].width > objectWidth){
+            stage = 2;
           }
-        }else if(pixy.blocks[j].signature == 2){
-          if(pixy.blocks[j].width > 50){
-            shortCut = false;
+        }else if((pixy.blocks[j].signature == 2) && (stage == 2 &&(pixy.blocks[j].width > minObjectWidth2))){
+          if(pixy.blocks[j].x > (319/3) * 2){
+            //turn right
+            m1Speed = 150;
+            m2Speed = -150;
+            Serial.println("I detect it on my right");
           }
-        }else if(pixy.blocks[j].signature == 3){
-          if(pixy.blocks[j].width > 100){
-            m1Speed = 0;
-            m2Speed = 0;
-            obstacle = true;
+          else if(pixy.blocks[j].x < (319/3) * 1){
+            
+            //turn left
+            m1Speed = -150;
+            m2Speed = 150;
+            Serial.println("I detect it on my left");
           }
+          else{
+            m1Speed = MAX_SPEED;
+            m2Speed = MAX_SPEED;
+            Serial.println("I detect it on my center");
+            if(pixy.blocks[j].width > objectWidth2){
+              stage = 1;
+            }
+          }
+        }else if(stage == 3){
+          m1Speed = 0;
+          m2Speed = 0;
         }
-        
-          
       }
     }
+  }else{
+    if(stage == 2){
+      m1Speed = 150;
+      m2Speed = -150;
+    }
+  }
+  if(stage == 3){
+    m1Speed = 0;
+    m2Speed = 0;
   }
   
   motors.setSpeeds(m1Speed, m2Speed);
