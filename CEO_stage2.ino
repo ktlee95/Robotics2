@@ -47,7 +47,7 @@ const int MAX_SPEED = 400;
 int stage = 1;
 const int objectWidth = 70;
 const int objectWidth2 = 70;
-const int minObjectWidth2 = 12;
+const int minObjectWidth2 = 15;
 
 
 //TURNING SPEED WHEN SEARCH
